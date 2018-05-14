@@ -1,0 +1,98 @@
+{{>partial_header}}
+package {{packageName}}
+
+import (
+    "strconv"
+	"net/http"
+	"strings"
+    "encoding/json"
+	"github.com/gorilla/mux"
+	"time"
+)
+type ApiError interface {
+    Error() string
+    Status() int
+}
+
+type defaultApiError struct {
+    error string
+    status int
+}
+
+func (e *defaultApiError) Error() string {
+    return  e.error
+}
+
+func (e *defaultApiError) Status() int {
+    return e.status
+}
+
+func NewApiError(status int, err string) *defaultApiError {
+    return &defaultApiError{
+        error: err,
+        status: status,
+    }
+}
+
+func NewRouter({{#apiInfo}}{{#apis}}{{#operations}}{{classname}} {{ baseName}}Api{{#hasMore}}, {{/hasMore}}{{/operations}}{{/apis}}{{/apiInfo}}) *mux.Router {
+	router := mux.NewRouter().StrictSlash(true)
+{{#apiInfo}}{{#apis}}{{#operations}}{{#operation}}
+    router.
+        Methods(strings.ToUpper("{{httpMethod}}")).
+        Path("{{{basePathWithoutHost}}}{{{path}}}").
+        Name("{{operationId}}").
+        HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+            {{#allParams}}
+            {{#isBodyParam}}
+            var {{ paramName}} {{ dataType}}
+            json.NewDecoder(r.Body).Decode(&{{paramName}})
+            {{/isBodyParam}}
+            {{#isPathParam}}
+            {{#isString}}
+            {{paramName}} := mux.Vars(r)["{{paramName}}"]
+            {{/isString}}
+            {{#isLong}}
+            {{paramName}} := stringToInt64(mux.Vars(r)["{{paramName}}"])
+            {{/isLong}}
+            {{/isPathParam}}
+            {{#isQueryParam}}
+            {{#isString}}
+            {{paramName}} := r.URL.Query().Get("{{paramName}}")
+            {{/isString}}
+            {{#isDateTime}}
+            {{paramName}} := stringToTime(r.URL.Query().Get("{{paramName}}"))
+            {{/isDateTime}}
+            {{#isInteger}}
+            {{paramName}} := stringToInt32(r.URL.Query().Get("{{paramName}}"))
+            {{/isInteger}}
+            {{/isQueryParam}}
+            {{/allParams}}
+
+            res, err := {{classname}}.{{operationIdCamelCase}}({{#allParams}}{{^isPrimitiveType}}{{^isContainer}}&{{/isContainer}}{{/isPrimitiveType}}{{paramName}}{{#hasMore}}, {{/hasMore}}{{/allParams}})
+            if err != nil {
+                http.Error(w, err.Error(), err.Status())
+                return
+            }
+
+            w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+            w.WriteHeader(http.StatusOK)
+            json.NewEncoder(w).Encode(res)
+        })
+{{/operation}}{{/operations}}{{/apis}}{{/apiInfo}}
+	return router
+}
+
+func stringToInt32(str string) int32 {
+    i, _ := strconv.Atoi(str)
+    return int32(i)
+}
+
+func stringToInt64(str string) int64 {
+    i, _ := strconv.Atoi(str)
+    return int64(i)
+}
+
+func stringToTime(str string) time.Time {
+	t, _ := time.Parse(time.RFC3339, str)
+	return t
+}

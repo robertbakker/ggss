@@ -1,0 +1,12 @@
+{{>partial_header}}
+package {{packageName}}
+
+import "time"
+
+{{#operations}}
+type {{classname}} interface {
+{{#operation}}
+    {{operationIdCamelCase}}({{#allParams}}{{paramName}} {{^isPrimitiveType}}{{^isContainer}}*{{/isContainer}}{{/isPrimitiveType}}{{dataType}}{{#hasMore}}, {{/hasMore}}{{/allParams}}) ({{^returnContainer}}*{{/returnContainer}}{{{ returnType }}}, ApiError)
+{{/operation}}
+}
+{{/operations}}
