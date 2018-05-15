@@ -1,12 +1,17 @@
 {{>partial_header}}
 package {{packageName}}
 
-import "time"
+import (
+    "time"
+    "mime/multipart"
+)
 
+var _ = time.Now
+var _ = multipart.ErrMessageTooLarge
 {{#operations}}
 type {{classname}} interface {
 {{#operation}}
-    {{operationIdCamelCase}}({{#allParams}}{{paramName}} {{^isPrimitiveType}}{{^isContainer}}*{{/isContainer}}{{/isPrimitiveType}}{{dataType}}{{#hasMore}}, {{/hasMore}}{{/allParams}}) ({{^returnContainer}}*{{/returnContainer}}{{{ returnType }}}, ApiError)
+    {{operationIdCamelCase}}({{#allParams}}{{>queryParams}}{{>pathParams}}{{>headerParams}}{{>bodyParams}}{{>formParams}}{{#hasMore}}, {{/hasMore}}{{/allParams}}) ({{#returnType}}{{^returnContainer}}*{{/returnContainer}}{{{ returnType }}}, {{/returnType}}ApiError)
 {{/operation}}
 }
 {{/operations}}

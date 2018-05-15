@@ -1,0 +1,1 @@
+{{#isFormParam}}{{{paramName}}} {{^isPrimitiveType}}{{^isContainer}}{{#notFile}}*{{/notFile}}{{/isContainer}}{{/isPrimitiveType}}{{^isFile}}{{{dataType}}}{{/isFile}}{{#isFile}} multipart.File, fileHeader *multipart.FileHeader{{/isFile}}{{/isFormParam}}

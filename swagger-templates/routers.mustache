@@ -2,13 +2,13 @@
 package {{packageName}}
 
 import (
-    "strconv"
 	"net/http"
 	"strings"
     "encoding/json"
 	"github.com/gorilla/mux"
-	"time"
+	"github.com/spf13/cast"
 )
+
 type ApiError interface {
     Error() string
     Status() int
@@ -35,64 +35,85 @@ func NewApiError(status int, err string) *defaultApiError {
 }
 
 func NewRouter({{#apiInfo}}{{#apis}}{{#operations}}{{classname}} {{ baseName}}Api{{#hasMore}}, {{/hasMore}}{{/operations}}{{/apis}}{{/apiInfo}}) *mux.Router {
-	router := mux.NewRouter().StrictSlash(true)
+	caster := &caster{}
+    router := mux.NewRouter().StrictSlash(true)
 {{#apiInfo}}{{#apis}}{{#operations}}{{#operation}}
     router.
         Methods(strings.ToUpper("{{httpMethod}}")).
         Path("{{{basePathWithoutHost}}}{{{path}}}").
         Name("{{operationId}}").
         HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-            {{#allParams}}
-            {{#isBodyParam}}
-            var {{ paramName}} {{ dataType}}
-            json.NewDecoder(r.Body).Decode(&{{paramName}})
-            {{/isBodyParam}}
-            {{#isPathParam}}
-            {{#isString}}
-            {{paramName}} := mux.Vars(r)["{{paramName}}"]
-            {{/isString}}
-            {{#isLong}}
-            {{paramName}} := stringToInt64(mux.Vars(r)["{{paramName}}"])
-            {{/isLong}}
-            {{/isPathParam}}
-            {{#isQueryParam}}
-            {{#isString}}
-            {{paramName}} := r.URL.Query().Get("{{paramName}}")
-            {{/isString}}
-            {{#isDateTime}}
-            {{paramName}} := stringToTime(r.URL.Query().Get("{{paramName}}"))
-            {{/isDateTime}}
-            {{#isInteger}}
-            {{paramName}} := stringToInt32(r.URL.Query().Get("{{paramName}}"))
-            {{/isInteger}}
-            {{/isQueryParam}}
-            {{/allParams}}
+            r.ParseForm()
 
-            res, err := {{classname}}.{{operationIdCamelCase}}({{#allParams}}{{^isPrimitiveType}}{{^isContainer}}&{{/isContainer}}{{/isPrimitiveType}}{{paramName}}{{#hasMore}}, {{/hasMore}}{{/allParams}})
+{{#allParams}}{{#isBodyParam}}
+            var {{ paramName}} {{^isContainer}}*{{/isContainer}}{{ dataType}}
+            bodyErr := json.NewDecoder(r.Body).Decode(&{{paramName}})
+            if bodyErr != nil {
+                panic(bodyErr)
+            }
+            {{/isBodyParam}}{{#isFormParam}}{{^isListContainer}}{{^isFile}}
+            {{paramName}} := r.Form["{{paramName}}"][0]
+{{/isFile}}{{#isFile}}
+            file, fileHeader, fileErr := r.FormFile("file")
+            if fileErr != nil {
+                panic(fileErr)
+            }
+            defer file.Close()
+{{/isFile}}{{/isListContainer}}{{/isFormParam}}{{#isPathParam}}{{^isListContainer}}
+            {{paramName}}, err := caster.{{dataType}}(mux.Vars(r)["{{paramName}}"])
             if err != nil {
-                http.Error(w, err.Error(), err.Status())
+                panic(err)
+            }
+{{/isListContainer}}{{/isPathParam}}{{#isQueryParam}}{{^isListContainer}}
+            {{paramName}}, err := caster.{{dataType}}(r.URL.Query().Get("{{paramName}}"))
+            if err != nil {
+                panic(err)
+            }
+{{/isListContainer}}{{#isListContainer}}
+            {{paramName}} := r.Form["{{paramName}}"]
+{{/isListContainer}}{{/isQueryParam}}{{#isHeaderParam}}{{^isListContainer}}
+            {{paramName}}, err := caster.{{dataType}}(r.Header.Get("{{paramName}}"))
+            if err != nil {
+            panic(err)
+            }
+{{/isListContainer}}{{/isHeaderParam}}{{/allParams}}
+
+            {{#returnType}}res, {{/returnType}}apiError := {{classname}}.{{operationIdCamelCase}}({{#allParams}}{{^isPrimitiveType}}{{/isPrimitiveType}}{{^isFile}}{{paramName}}{{/isFile}}{{#isFile}}file, fileHeader{{/isFile}}{{#hasMore}}, {{/hasMore}}{{/allParams}})
+            if apiError != nil {
+                http.Error(w, apiError.Error(), apiError.Status())
                 return
             }
 
             w.Header().Set("Content-Type", "application/json; charset=UTF-8")
             w.WriteHeader(http.StatusOK)
-            json.NewEncoder(w).Encode(res)
+            {{#returnType}}writeErr := json.NewEncoder(w).Encode(res)
+            if writeErr != nil {
+                panic(writeErr)
+            }{{/returnType}}
         })
 {{/operation}}{{/operations}}{{/apis}}{{/apiInfo}}
 	return router
 }
 
-func stringToInt32(str string) int32 {
-    i, _ := strconv.Atoi(str)
-    return int32(i)
+
+type caster struct {}
+
+func (c caster) string(val interface{}) (string, error) {
+    return cast.ToStringE(val)
 }
 
-func stringToInt64(str string) int64 {
-    i, _ := strconv.Atoi(str)
-    return int64(i)
+func (c caster) int64(val interface{}) (int64, error) {
+    return cast.ToInt64E(val)
 }
 
-func stringToTime(str string) time.Time {
-	t, _ := time.Parse(time.RFC3339, str)
-	return t
+func (c caster) int32(val interface{}) (int32, error) {
+    return cast.ToInt32E(val)
+}
+
+func (c caster) float64(val interface{}) (float64, error) {
+    return cast.ToFloat64E(val)
+}
+
+func (c caster) float32(val interface{}) (float32, error) {
+    return cast.ToFloat32E(val)
 }
