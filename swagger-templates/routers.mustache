@@ -49,32 +49,37 @@ func NewRouter({{#apiInfo}}{{#apis}}{{#operations}}{{classname}} {{ baseName}}Ap
             var {{ paramName}} {{^isContainer}}*{{/isContainer}}{{ dataType}}
             bodyErr := json.NewDecoder(r.Body).Decode(&{{paramName}})
             if bodyErr != nil {
-                panic(bodyErr)
+                http.Error(w, bodyErr.Error(), http.StatusBadRequest)
+                return
             }
             {{/isBodyParam}}{{#isFormParam}}{{^isListContainer}}{{^isFile}}
             {{paramName}} := r.Form["{{paramName}}"][0]
 {{/isFile}}{{#isFile}}
             file, fileHeader, fileErr := r.FormFile("file")
             if fileErr != nil {
-                panic(fileErr)
+                http.Error(w, fileErr.Error(), http.StatusBadRequest)
+                return
             }
             defer file.Close()
 {{/isFile}}{{/isListContainer}}{{/isFormParam}}{{#isPathParam}}{{^isListContainer}}
-            {{paramName}}, err := caster.{{dataType}}(mux.Vars(r)["{{paramName}}"])
-            if err != nil {
-                panic(err)
+            {{paramName}}, pathErr := caster.{{dataType}}(mux.Vars(r)["{{paramName}}"])
+            if pathErr != nil {
+                http.Error(w, pathErr.Error(), http.StatusBadRequest)
+                return
             }
 {{/isListContainer}}{{/isPathParam}}{{#isQueryParam}}{{^isListContainer}}
-            {{paramName}}, err := caster.{{dataType}}(r.URL.Query().Get("{{paramName}}"))
-            if err != nil {
-                panic(err)
+            {{paramName}}, queryErr := caster.{{dataType}}(r.URL.Query().Get("{{paramName}}"))
+            if queryErr != nil {
+                http.Error(w, queryErr.Error(), http.StatusBadRequest)
+                return
             }
 {{/isListContainer}}{{#isListContainer}}
             {{paramName}} := r.Form["{{paramName}}"]
 {{/isListContainer}}{{/isQueryParam}}{{#isHeaderParam}}{{^isListContainer}}
-            {{paramName}}, err := caster.{{dataType}}(r.Header.Get("{{paramName}}"))
-            if err != nil {
-            panic(err)
+            {{paramName}}, headerErr := caster.{{dataType}}(r.Header.Get("{{paramName}}"))
+            if headerErr != nil {
+                http.Error(w, headerErr.Error(), http.StatusBadRequest)
+                return
             }
 {{/isListContainer}}{{/isHeaderParam}}{{/allParams}}
 
@@ -88,7 +93,8 @@ func NewRouter({{#apiInfo}}{{#apis}}{{#operations}}{{classname}} {{ baseName}}Ap
             w.WriteHeader(http.StatusOK)
             {{#returnType}}writeErr := json.NewEncoder(w).Encode(res)
             if writeErr != nil {
-                panic(writeErr)
+                http.Error(w, writeErr.Error(), http.StatusInternalServerError)
+                return
             }{{/returnType}}
         })
 {{/operation}}{{/operations}}{{/apis}}{{/apiInfo}}
