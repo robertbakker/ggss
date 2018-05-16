@@ -36,6 +36,8 @@ func NewApiError(status int, err string) *defaultApiError {
 
 func NewRouter({{#apiInfo}}{{#apis}}{{#operations}}{{classname}} {{ baseName}}Api{{#hasMore}}, {{/hasMore}}{{/operations}}{{/apis}}{{/apiInfo}}) *mux.Router {
 	caster := &caster{}
+    caster.noop()
+
     router := mux.NewRouter().StrictSlash(true)
 {{#apiInfo}}{{#apis}}{{#operations}}{{#operation}}
     router.
@@ -103,6 +105,8 @@ func NewRouter({{#apiInfo}}{{#apis}}{{#operations}}{{classname}} {{ baseName}}Ap
 
 
 type caster struct {}
+
+func (c caster) noop() {}
 
 func (c caster) string(val interface{}) (string, error) {
     return cast.ToStringE(val)
