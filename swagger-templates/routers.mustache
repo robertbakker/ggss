@@ -7,6 +7,8 @@ import (
     "encoding/json"
 	"github.com/gorilla/mux"
 	"github.com/spf13/cast"
+    "time"
+    "github.com/araddon/dateparse"
 )
 
 type ApiError interface {
@@ -70,7 +72,7 @@ func NewRouter({{#apiInfo}}{{#apis}}{{#operations}}{{classname}} {{ baseName}}Ap
                 return
             }
 {{/isListContainer}}{{/isPathParam}}{{#isQueryParam}}{{^isListContainer}}
-            {{paramName}}, queryErr := caster.{{dataType}}(r.URL.Query().Get("{{paramName}}"))
+            {{paramName}}, queryErr := caster.{{^isDateTime}}{{dataType}}{{/isDateTime}}{{#isDateTime}}dateTime{{/isDateTime}}(r.URL.Query().Get("{{paramName}}"))
             if queryErr != nil {
                 http.Error(w, queryErr.Error(), http.StatusBadRequest)
                 return
@@ -126,4 +128,8 @@ func (c caster) float64(val interface{}) (float64, error) {
 
 func (c caster) float32(val interface{}) (float32, error) {
     return cast.ToFloat32E(val)
+}
+
+func (c caster) dateTime(val interface{}) (time.Time, error) {
+    return dateparse.ParseAny(cast.ToString(val))
 }
